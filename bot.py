@@ -5,7 +5,7 @@ import requests
 import json
 import random
 
-# Render के लिए डमी वेब सर्वर (पोर्ट एरर हटाने के लिए)
+# Render के लिए डमी वेब सर्वर (पोर्ट 8080)
 app = Flask('')
 
 @app.route('/')
@@ -19,10 +19,10 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# सर्वर को चालू करते हैं
+# सर्वर चालू करते हैं
 keep_alive()
 
-# आपका असली ट्रेडिंग बोट कोड
+# ट्रेडिंग बोट का सेटअप
 TOKEN = "881830648:AAFXbT_Qtdze1EJdYund2Q11GPgfPlGFgKM"
 URL = f"https://api.telegram.org/bot{TOKEN}/"
 
@@ -75,7 +75,7 @@ while True:
                 if "message" in result and "text" in result["message"]:
                     message = result["message"]
                     chat_id = message["chat"]["id"]
-                    text = message["text"]
+                    text = message["text"].strip()
                     
                     if text.startswith("/start"):
                         status_text = "✅ *Online & Connected*" if BROKER_CONNECTED else "❌ *Offline / Disconnected*"
@@ -94,25 +94,26 @@ while True:
                             offline_msg = (
                                 f"❌ *BROKER DISCONNECTED* ❌\n"
                                 f"-----------------------------------\n"
-                                f"⚠️ वर्तमान में ब्रोकर का सर्वर ऑफलाइन है!"
+                                f"⚠️️ वर्तमान में ब्रोकर का सर्वर ऑफलाइन है!"
                             )
                             requests.post(f"{URL}sendMessage", json={"chat_id": chat_id, "text": offline_msg, "parse_mode": "Markdown"})
                             continue
 
                         # Clean text: (OTC) ya OTC ko hata kar saare parts alag karenge
-                        cleaned_text = text.replace("(OTC)", "").replace("OTC", "").replace("otc", "")
+                        cleaned_text = text.replace("(OTC)", "").replace("OTC", "").replace("otc", "").replace("/", " ")
                         parts = cleaned_text.split()
                         
                         platform = parts[0][1:].upper()
                         
-                        # Ab ye automatic detect kar lega chahe beech me OTC ho ya na ho
-                        asset = parts[1].upper() if len(parts) > 1 else "EUR/CHF"
-                        timeframe = parts.upper() if len(parts) > 2 else "1M"
+                        # Safe extraction for asset and timeframe
+                        asset = f"{parts[1]}/{parts[2]}".upper() if len(parts) > 2 else "EUR/CHF"
+                        timeframe = parts[3].upper() if len(parts) > 3 else "1M"
 
                         if asset not in VALID_ASSETS:
                             error_msg = (
                                 f"❌ *INVALID ASSET* ❌\n"
-                                f"Asset `{asset}` list me nahi hai. Sahi asset dalein."
+                                f"Asset `{asset}` list me nahi hai. Sahi asset dalein.\n"
+                                f"Valid assets: {', '.join(VALID_ASSETS)}"
                             )
                             requests.post(f"{URL}sendMessage", json={"chat_id": chat_id, "text": error_msg, "parse_mode": "Markdown"})
                             continue
@@ -120,7 +121,7 @@ while True:
                         if timeframe not in VALID_TIMEFRAMES:
                             error_msg = (
                                 f"❌ *INVALID TIMEFRAME* ❌\n"
-                                f"Timeframe `{timeframe}` galat hai. Valid values: `1M, 2M, 5M`"
+                                f"Timeframe `{timeframe}` galat hai. Valid values: `1M, 2M, 5M, 15M`"
                             )
                             requests.post(f"{URL}sendMessage", json={"chat_id": chat_id, "text": error_msg, "parse_mode": "Markdown"})
                             continue
