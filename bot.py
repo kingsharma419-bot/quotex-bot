@@ -1,9 +1,29 @@
+from flask import Flask
+from threading import Thread
 import time
 import requests
 import json
 import random
 
-TOKEN = "8818308648:AAFXbT_Qtdze1EJdYund2Q11GPgfPlGFgKM"
+# Render के लिए डमी वेब सर्वर (पोर्ट एरर हटाने के लिए)
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot is alive and running!"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+# सर्वर को चालू करते हैं
+keep_alive()
+
+# आपका असली ट्रेडिंग बोट कोड
+TOKEN = "881830648:AAFXbT_Qtdze1EJdYund2Q11GPgfPlGFgKM"
 URL = f"https://api.telegram.org/bot{TOKEN}/"
 
 print("Compound Algo OTC Final Engine Started...")
@@ -85,9 +105,9 @@ while True:
                         
                         platform = parts[0][1:].upper()
                         
-                        # Ab ye automatic detect kar lega chaहे बीच me OTC ho ya na ho
+                        # Ab ye automatic detect kar lega chahe beech me OTC ho ya na ho
                         asset = parts[1].upper() if len(parts) > 1 else "EUR/CHF"
-                        timeframe = parts[2].upper() if len(parts) > 2 else "1M"
+                        timeframe = parts.upper() if len(parts) > 2 else "1M"
 
                         if asset not in VALID_ASSETS:
                             error_msg = (
