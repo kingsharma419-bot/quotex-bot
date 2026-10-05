@@ -1,8 +1,6 @@
 import os
 import random
 import requests
-import time
-from threading import Thread
 from flask import Flask, request
 
 app = Flask(__name__)
@@ -11,9 +9,9 @@ TOKEN = "8818308648:AAFXbT_Qtdze1EJdYund2Q11GPgfPlGFgKM"
 TELEGRAM_URL = f"https://api.telegram.org/bot{TOKEN}/"
 RENDER_URL = "https://quotex-bot-svsk.onrender.com"
 
-VALID_ASSETS = ["EUR/CHF", "USD/JPY", "NZD/USD", "AUD/CAD"]
+# OTC Assets aur Timeframes
+VALID_ASSETS = ["EUR/CHF", "USD/JPY", "NZD/USD", "AUD/CAD", "EUR/USD", "GBP/USD"]
 VALID_TIMEFRAMES = ["1M", "2M", "5M"]
-active_chat_ids = set()
 
 def calculate_rsi_signal(asset, timeframe):
     rsi_value = round(random.uniform(18.0, 82.0), 2)
@@ -36,52 +34,80 @@ def calculate_rsi_signal(asset, timeframe):
 
 @app.route('/')
 def home():
-    return "Webhook Bot with Auto-Signals is running live!"
+    return "Interactive Signal Bot is running live!"
 
 @app.route(f'/{TOKEN}', methods=['POST'])
 def receive_update():
     json_data = request.get_json()
-    if json_data and 'message' in json_data:
-        message = json_data['message']
-        chat_id = message['chat']['id']
-        text = message.get('text', '').strip()
-        
-        # Chat ID ko save kar lete hain taaki auto signal inhi par jaye
-        active_chat_ids.add(chat_id)
-        
-        if text.startswith('/start'):
-            welcome_msg = (
-                "⚡ *COMPOUND ALGO PRO (OTC)* ⚡\n"
-                "-----------------------------------\n"
-                "✅ *Connected! Ab aapko har kuch der mein automatic signals milte rahenge.*\n"
-            )
-            requests.post(f"{TELEGRAM_URL}sendMessage", json={"chat_id": chat_id, "text": welcome_msg, "parse_mode": "Markdown"})
+    
+    if json_data:
+        # 1. Agar user ne button click kiya hai (Callback Query)
+        if 'callback_query' in json_data:
+            callback = json_data['callback_query']
+            chat_id = callback['message']['chat']['id']
+            data = callback['data'] # Jaise 'sig_EUR/CHF'
             
-    return {"status": "ok"}
+            if data.startswith('sig_'):
+                asset = data.split('_')[1]
+                timeframe = random.choice(VALID_TIMEFRAMES)
+                rsi, direction, strength = calculate_rsi_signal(asset, timeframe)
+                
+                report = (
+                    f"🎯 *CUSTOM TRADE SIGNAL* 🎯\n"
+                    f"-----------------------------------\n"
+                    f"🌍 *Asset:* {asset} (OTC)\n"
+                    f"⏳ *Timeframe:* {timeframe}\n"
+                    f"📈 *Signal:* {direction}\n"
+                    f"📉 *RSI:* {rsi} | *Strength:* {strength}\n"
+                    f"-----------------------------------\n"
+                    f"⚡ *Ekdam fresh entry lo!*"
+                )
+                requests.post(f"{TELEGRAM_URL}sendMessage", json={
+                    "chat_id": chat_id, 
+                    "text": report, 
+                    "parse_mode": "Markdown"
+                })
+            return {"status": "ok"}
 
-# Background Worker jo apne aap periodic signals bhejega
-def background_signal_sender():
-    while True:
-        time.sleep(60) # Har 60 seconds (1 minute) mein signal bheージュga (ise apne hisab se badal sakte ho)
-        if active_chat_ids:
-            asset = random.choice(VALID_ASSETS)
-            timeframe = random.choice(VALID_TIMEFRAMES)
-            rsi, direction, strength = calculate_rsi_signal(asset, timeframe)
+        # 2. Agar user ne normal message bheja hai
+        if 'message' in json_data:
+            message = json_data['message']
+            chat_id = message['chat']['id']
+            text = message.get('text', '').strip()
             
-            report = (
-                f"🔔 *AUTO SIGNAL NOTIFICATION* 🔔\n"
-                f"-----------------------------------\n"
-                f"🌍 **Asset:** {asset} (OTC)\n"
-                f"⏳ **Timeframe:** {timeframe}\n"
-                f"📈 **Signal:** {direction}\n"
-                f"📉 **RSI:** {rsi} | **Strength:** {strength}\n"
-                f"-----------------------------------\n"
-            )
-            for cid in list(active_chat_ids):
-                try:
-                    requests.post(f"{TELEGRAM_URL}sendMessage", json={"chat_id": cid, "text": report, "parse_mode": "Markdown"}, timeout=10)
-                except:
-                    pass
+            if text.startswith('/start') or text.startswith('/signal'):
+                # Currency select karne ke liye Inline Keyboard buttons bana rahe hain
+                keyboard = {
+                    "inline_keyboard": [
+                        [
+                            {"text": "📊 EUR/CHF (OTC)", "callback_data": "sig_EUR/CHF"},
+                            {"text": "📊 USD/JPY (OTC)", "callback_data": "sig_USD/JPY"}
+                        ],
+                        [
+                            {"text": "📊 NZD/USD (OTC)", "callback_data": "sig_NZD/USD"},
+                            {"text": "📊 AUD/CAD (OTC)", "callback_data": "sig_AUD/CAD"}
+                        ],
+                        [
+                            {"text": "📊 EUR/USD (OTC)", "callback_data": "sig_EUR/USD"},
+                            {"text": "📊 GBP/USD (OTC)", "callback_data": "sig_GBP/USD"}
+                        ]
+                    ]
+                }
+                
+                welcome_msg = (
+                    "⚡ *COMPOUND ALGO PRO (OTC)* ⚡\n"
+                    "-----------------------------------\n"
+                    "👋 *Swagat hai Dharmendra bhai!*\n"
+                    "Neeche diye gaye buttons mein se apni pasand ki **Currency/Asset** select karo, aur turant live signal pao:"
+                )
+                requests.post(f"{TELEGRAM_URL}sendMessage", json={
+                    "chat_id": chat_id, 
+                    "text": welcome_msg, 
+                    "parse_mode": "Markdown",
+                    "reply_markup": keyboard
+                })
+                
+    return {"status": "ok"}
 
 def set_webhook():
     webhook_url = f"{RENDER_URL}/{TOKEN}"
@@ -90,6 +116,4 @@ def set_webhook():
 
 if __name__ == '__main__':
     set_webhook()
-    # Background thread start kar rahe hain
-    Thread(target=background_signal_sender, daemon=True).start()
     app.run(host='0.0.0.0', port=8080)
