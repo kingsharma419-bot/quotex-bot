@@ -5,12 +5,12 @@ import requests
 import json
 import random
 
-# Render के लिए डमी वेब सर्वर (पोर्ट 8080)
+# Render ke liye dummy web server (port 8080)
 app = Flask('')
 
 @app.route('/')
 def home():
-    return "Bot is alive and running!"
+    return "Bot is alive and running smoothly!"
 
 def run():
     app.run(host='0.0.0.0', port=8080)
@@ -19,27 +19,24 @@ def keep_alive():
     t = Thread(target=run)
     t.start()
 
-# सर्वर चालू करते हैं
 keep_alive()
 
-# ट्रेडिंग बोट का सेटअप
+# Telegram Bot Token
 TOKEN = "881830648:AAFXbT_Qtdze1EJdYund2Q11GPgfPlGFgKM"
 URL = f"https://api.telegram.org/bot{TOKEN}/"
 
-print("Compound Algo OTC Final Engine Started...")
+print("Compound Algo OTC Final Production Engine Started...")
 
 offset = 0
 BROKER_CONNECTED = True 
+VALID_ASSETS = ["EUR/CHF", "USD/JPY", "NZD/USD", "AUD/CAD", "USD/BRL", "GBP/USD"]
+VALID_TIMEFRAMES = ["1M", "2M", "5M"]
 
-VALID_ASSETS = [
-    "NZD/USD", "USD/JPY", "USD/BRL", "USD/COP", "AUD/CAD", 
-    "NZD/JPY", "USD/ARS", "USD/CAD", "USD/EGP", "AUD/JPY", "EUR/CHF", "EUR/JPY", "USD/USD"
-]
-VALID_TIMEFRAMES = ["1M", "2M", "5M", "15M"]
+# Active users ki chat list taaki sabko auto-notification mil sake
+active_chat_ids = set()
 
 def calculate_rsi_signal(asset, timeframe):
     rsi_value = round(random.uniform(18.0, 82.0), 2)
-    
     if rsi_value < 25:
         direction = "🟢 CALL (UP)"
         strength = "Strong Buy (Oversold Zone)"
@@ -60,9 +57,41 @@ def calculate_rsi_signal(asset, timeframe):
         direction = "🟡 WAIT / NEUTRAL"
         strength = "Market Consolidating"
         status = "Avoid Trade (High Risk)"
-
     return rsi_value, direction, strength, status
 
+# Background thread jo bina user ke message bheje automatic signals push karega
+def background_auto_sender():
+    while True:
+        time.sleep(45) # Har 45 seconds mein automatic signal notification
+        if active_chat_ids:
+            asset = random.choice(VALID_ASSETS)
+            timeframe = random.choice(VALID_TIMEFRAMES)
+            rsi, direction, strength, status = calculate_rsi_signal(asset, timeframe)
+            
+            report = (
+                f"🔔 *AUTO SIGNAL NOTIFICATION* 🔔\n"
+                f"⚡ *COMPOUND ALGO SIGNAL (OTC)* ⚡\n"
+                f"-----------------------------------\n"
+                f"🌍 **Asset:** {asset} (OTC)\n"
+                f"⏳ **Timeframe:** {timeframe}\n"
+                f"-----------------------------------\n"
+                f"📈 **Signal:** {direction}\n"
+                f"📉 **RSI Value:** {rsi}\n"
+                f"💪 **Strength:** {strength}\n"
+                f"🎯 **Status:** {status}\n"
+                f"-----------------------------------\n"
+                f"⚠️ *Disclaimer: Binary trading involves risk.*"
+            )
+            for cid in list(active_chat_ids):
+                try:
+                    requests.post(f"{URL}sendMessage", json={"chat_id": cid, "text": report, "parse_mode": "Markdown"}, timeout=10)
+                except Exception as e:
+                    print(f"Auto-send error for chat {cid}: {e}")
+
+# Background worker thread start karte hain
+Thread(target=background_auto_sender, daemon=True).start()
+
+# Main Polling Loop
 while True:
     try:
         response = requests.get(f"{URL}getUpdates", params={"offset": offset, "timeout": 30}, timeout=35)
@@ -77,74 +106,37 @@ while True:
                     chat_id = message["chat"]["id"]
                     text = message["text"].strip()
                     
+                    # Chat ID ko save kar lo taaki auto notifications aane lagein
+                    active_chat_ids.add(chat_id)
+                    
                     if text.startswith("/start"):
-                        status_text = "✅ *Online & Connected*" if BROKER_CONNECTED else "❌ *Offline / Disconnected*"
                         welcome_msg = (
                             "⚡ *COMPOUND ALGO PRO (OTC)* ⚡\n"
                             "-----------------------------------\n"
-                            f"🏢 *Broker Status:* {status_text}\n"
-                            "⚠️ *Trade at your own risk. Manage money wisely.*\n\n"
-                            "Aise command bhejein:\n"
-                            "`/quotex EUR/CHF 1M`"
+                            "✅ *System Connected Successfully!*\n"
+                            "🤖 *Ab aapko bina kuch kiye automatic trading signals milte rahenge.*\n"
                         )
                         requests.post(f"{URL}sendMessage", json={"chat_id": chat_id, "text": welcome_msg, "parse_mode": "Markdown"})
                         
                     elif text.startswith("/quotex") or text.startswith("/pocket"):
-                        if not BROKER_CONNECTED:
-                            offline_msg = (
-                                f"❌ *BROKER DISCONNECTED* ❌\n"
-                                f"-----------------------------------\n"
-                                f"⚠️️ वर्तमान में ब्रोकर का सर्वर ऑफलाइन है!"
-                            )
-                            requests.post(f"{URL}sendMessage", json={"chat_id": chat_id, "text": offline_msg, "parse_mode": "Markdown"})
-                            continue
-
-                        # Clean text: (OTC) ya OTC ko hata kar saare parts alag karenge
-                        cleaned_text = text.replace("(OTC)", "").replace("OTC", "").replace("otc", "").replace("/", " ")
-                        parts = cleaned_text.split()
-                        
-                        platform = parts[0][1:].upper()
-                        
-                        # Safe extraction for asset and timeframe
+                        # Manual command request handling
+                        parts = text.replace("/", " ").split()
                         asset = f"{parts[1]}/{parts[2]}".upper() if len(parts) > 2 else "EUR/CHF"
                         timeframe = parts[3].upper() if len(parts) > 3 else "1M"
-
-                        if asset not in VALID_ASSETS:
-                            error_msg = (
-                                f"❌ *INVALID ASSET* ❌\n"
-                                f"Asset `{asset}` list me nahi hai. Sahi asset dalein.\n"
-                                f"Valid assets: {', '.join(VALID_ASSETS)}"
-                            )
-                            requests.post(f"{URL}sendMessage", json={"chat_id": chat_id, "text": error_msg, "parse_mode": "Markdown"})
-                            continue
-
-                        if timeframe not in VALID_TIMEFRAMES:
-                            error_msg = (
-                                f"❌ *INVALID TIMEFRAME* ❌\n"
-                                f"Timeframe `{timeframe}` galat hai. Valid values: `1M, 2M, 5M, 15M`"
-                            )
-                            requests.post(f"{URL}sendMessage", json={"chat_id": chat_id, "text": error_msg, "parse_mode": "Markdown"})
-                            continue
                         
                         rsi, direction, strength, status = calculate_rsi_signal(asset, timeframe)
-                        
-                        report = (
-                            f"⚡ *COMPOUND ALGO SIGNAL (OTC)* ⚡\n"
+                        manual_report = (
+                            f"⚡ *MANUAL REQUEST SIGNAL* ⚡\n"
                             f"-----------------------------------\n"
-                            f"🏢 **Platform:** {platform} (Connected)\n"
                             f"🌍 **Asset:** {asset} (OTC)\n"
                             f"⏳ **Timeframe:** {timeframe}\n"
-                            f"-----------------------------------\n"
                             f"📈 **Signal:** {direction}\n"
                             f"📉 **RSI Value:** {rsi}\n"
                             f"💪 **Strength:** {strength}\n"
-                            f"🎯 **Status:** {status}\n"
-                            f"-----------------------------------\n"
-                            f"⚠️ *Disclaimer: Binary trading involves risk.*"
                         )
-                        requests.post(f"{URL}sendMessage", json={"chat_id": chat_id, "text": report, "parse_mode": "Markdown"})
+                        requests.post(f"{URL}sendMessage", json={"chat_id": chat_id, "text": manual_report, "parse_mode": "Markdown"})
                         
         time.sleep(0.5)
     except Exception as e:
-        print(f"Error: {e}. Reconnecting...")
+        print(f"Polling Error: {e}. Reconnecting in 3 seconds...")
         time.sleep(3)
