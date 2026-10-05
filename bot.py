@@ -6,7 +6,7 @@ from flask import Flask, request
 app = Flask(__name__)
 
 # Tumhara bilkul sahi aur updated Telegram Bot Token
-TOKEN = "881830648:AAFXbT_Qtdze1EJdYund2Q11GPgfPlGFgKM"
+TOKEN = "8818308648:AAFXbT_Qtdze1EJdYund2Q11GPgfPlGFgKM"
 TELEGRAM_URL = f"https://api.telegram.org/bot{TOKEN}/"
 RENDER_URL = "https://quotex-bot-svsk.onrender.com"  # Tumhara Render URL
 
