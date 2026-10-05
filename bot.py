@@ -5,9 +5,10 @@ from flask import Flask, request
 
 app = Flask(__name__)
 
+# Tumhara bilkul sahi aur updated Telegram Bot Token
 TOKEN = "881830648:AAFXbT_Qtdze1EJdYund2Q11GPgfPlGFgKM"
 TELEGRAM_URL = f"https://api.telegram.org/bot{TOKEN}/"
-RENDER_URL = "https://quotex-bot-svsk.onrender.com"  # तुम्हारा Render URL
+RENDER_URL = "https://quotex-bot-svsk.onrender.com"  # Tumhara Render URL
 
 VALID_ASSETS = ["EUR/CHF", "USD/JPY", "NZD/USD", "AUD/CAD"]
 VALID_TIMEFRAMES = ["1M", "2M", "5M"]
@@ -36,7 +37,7 @@ def calculate_rsi_signal(asset, timeframe):
 def home():
     return "Webhook Bot is running live!"
 
-# यह राऊत टेलीग्राम से सीधे मैसेज रिसीव करेगा (कोई पोलिंग कॉन्फ्लिक्ट नहीं!)
+# Yeh route telegram se seedhe message receive karega
 @app.route(f'/{TOKEN}', methods=['POST'])
 def receive_update():
     json_data = request.get_json()
@@ -51,13 +52,13 @@ def receive_update():
             welcome_msg = (
                 "⚡ *COMPOUND ALGO PRO (OTC)* ⚡\n"
                 "-----------------------------------\n"
-                "✅ *Webhook Connected Successfully! अब मैसेज तुरंत मिलेंगे.*\n"
+                "✅ *Connected Successfully! Ab automatic signals milte rahenge.*\n"
             )
             requests.post(f"{TELEGRAM_URL}sendMessage", json={"chat_id": chat_id, "text": welcome_msg, "parse_mode": "Markdown"})
             
     return {"status": "ok"}
 
-# ऑटोमैटिक सेट वेबहुक फंक्शन
+# Automatic set webhook function
 def set_webhook():
     webhook_url = f"{RENDER_URL}/{TOKEN}"
     res = requests.get(f"{TELEGRAM_URL}setWebhook", params={"url": webhook_url})
